@@ -78,19 +78,9 @@ class ClFinal_BNT(Theory):
             n2 = clm['bin_2']
             e1 = self.bias_info[n1]['eps']
             e2 = self.bias_info[n2]['eps']
-            ind1 = self.bias_info[n1]['bias_ind']
-            ind2 = self.bias_info[n2]['bias_ind']
-            b1 = bias_vec[ind1] if ind1 is not None else None
-            b2 = bias_vec[ind2] if ind2 is not None else None
             inds = clm['inds']
             if e1 and e2:
                 cl_this += cld['cl00'][icl]
-            if e1 and (b2 is not None):
-                cl_this += np.dot(b2, cld['cl01'][icl]) # (nbias) , (nbias, nell)
-            if e2 and (b1 is not None):
-                cl_this += np.dot(b1, cld['cl10'][icl]) # (nbias) , (nbias, nell)
-            if (b1 is not None) and (b2 is not None):
-                cl_this += np.dot(b1, np.dot(b2, cld['cl11'][icl])) # (nbias1) * ((nbias2), (nbias1,nbias2,nell))
 
             # Multiply global biases (e.g. multiplicative bias)
             cl_this *= global_bias[n1]
@@ -108,31 +98,16 @@ class ClFinal_BNT(Theory):
             cls_grad = np.zeros([nbias, len(clm['l_eff'])])
             n1 = clm['bin_1']
             n2 = clm['bin_2']
-            e1 = self.bias_info[n1]['eps']
-            e2 = self.bias_info[n2]['eps']
             ind1 = self.bias_info[n1]['bias_ind']
             ind2 = self.bias_info[n2]['bias_ind']
-            b1 = bias_vec[ind1] if ind1 is not None else None
-            b2 = bias_vec[ind2] if ind2 is not None else None
             inds = clm['inds']
-
-            if e1 and (b2 is not None):
-                cls_grad[ind2] += cld['cl01'][icl] # (nbias2, ndata) , (nbias2, ndata)
-            if e2 and (b1 is not None):
-                cls_grad[ind1] += cld['cl10'][icl] # (nbias1, ndata) , (nbias1, ndat)
-
-            if (b1 is not None) and (b2 is not None):
-                cl_b2 = np.dot(b2, cld['cl11'][icl]) # (nbias2) , (nbias1, nbias2, ndata) -> (nbias1, ndata)
-                cl_b1 = np.sum(b1[:, None, None] * cld['cl11'][icl], axis=0) # (nbias1) , (nbias1, nbias2, ndata) -> (nbias2, ndata)
-                cls_grad[ind1] += cl_b2
-                cls_grad[ind2] += cl_b1
 
             # Multiply global biases (e.g. multiplicative bias)
             cls_grad[ind1] *= global_bias[n1]
             cls_grad[ind2] *= global_bias[n2]
 
             cls_deriv[inds] = cls_grad.T
-        return cls_deriv # (ndata, nbias)
+        return cls_deriv  # (ndata, nbias)
 
     def _get_bias_info(self, is_PT_bias):
         # Extract additional per-sample information from the sacc

@@ -80,23 +80,17 @@ class Limber_BNT(Theory):
         and halo profiles where needed) for all used tracers given the
         current parameters."""
         trs0 = {}
-        trs1 = {}
-        trs1_dnames = {}
         for name, q in self.tracer_qs.items():
             if q == 'galaxy_density':
                 raise ValueError('galaxy_density tracers not implemented!')
             elif q == 'galaxy_shear':
                 dndz = self._get_nz(cosmo, name, **pars)
                 t0 = ccl.WeakLensingTracer(cosmo, dndz=dndz)
-                t1 = None
-                t1n = None
             elif q == 'cmb_convergence':
                 raise ValueError('cmb_convergence tracers not implemented!')
 
             trs0[name] = t0
-            trs1[name] = t1
-            trs1_dnames[name] = t1n
-        return trs0, trs1, trs1_dnames
+        return trs0
 
     def _get_cl_data(self, cosmo, **pars):
         """ Compute all C_ells."""
@@ -104,13 +98,10 @@ class Limber_BNT(Theory):
         pkd = self.provider.get_Pk()["pk_data"]
 
         # Gather all tracers
-        trs0, trs1, dnames = self._get_tracers(cosmo, **pars)
+        trs0 = self._get_tracers(cosmo, **pars)
 
         # Correlate all needed pairs of tracers
         cls_00 = []
-        cls_01 = []
-        cls_10 = []
-        cls_11 = []
         for clm in self.cl_meta:
             if self.sample_cen:
                 ls = clm['l_eff']
@@ -121,10 +112,6 @@ class Limber_BNT(Theory):
             n2 = clm['bin_2']
             t0_1 = trs0[n1]
             t0_2 = trs0[n2]
-            t1_1 = trs1[n1]
-            t1_2 = trs1[n2]
-            dn_1 = dnames[n1]
-            dn_2 = dnames[n2]
             # 00: unbiased x unbiased
             if t0_1 and t0_2:
                 pk = pkd['pk_mm']
@@ -132,66 +119,11 @@ class Limber_BNT(Theory):
                 cls_00.append(cl00)
             else:
                 cls_00.append(None)
-            # 01: unbiased x biased
-            if t0_1 and (t1_2 is not None):
-                cl01 = []
-                for t12, dn in zip(t1_2, dn_2):
-                    pk = pkd[f'pk_m{dn}']
-                    if pk is not None:
-                        cl = ccl.angular_cl(cosmo, t0_1, t12, ls, p_of_k_a=pk) * clm['pixbeam']
-                    else:
-                        cl = np.zeros_like(ls)
-                    cl01.append(cl)
-                cl01 = np.array(cl01)
-            else:
-                cl01 = None
-            cls_01.append(cl01)
-            # 10: biased x unbiased
-            if n1 == n2:
-                cls_10.append(cl01)
-            else:
-                if t0_2 and (t1_1 is not None):
-                    cl10 = []
-                    for t11, dn in zip(t1_1, dn_1):
-                        pk = pkd[f'pk_m{dn}']
-                        if pk is not None:
-                            cl = ccl.angular_cl(cosmo, t11, t0_2, ls, p_of_k_a=pk) * clm['pixbeam']
-                        else:
-                            cl = np.zeros_like(ls)
-                        cl10.append(cl)
-                    cl10 = np.array(cl10)
-                else:
-                    cl10 = None
-                cls_10.append(cl10)
-            # 11: biased x biased
-            if (t1_1 is not None) and (t1_2 is not None):
-                cl11 = np.zeros([len(t1_1), len(t1_2), len(ls)])
-                autocorr = n1 == n2
-                for i1, (t11, dn1) in enumerate(zip(t1_1, dn_1)):
-                    for i2, (t12, dn2) in enumerate(zip(t1_2, dn_2)):
-                        if autocorr and i2 < i1:
-                            cl11[i1, i2] = cl11[i2, i1]
-                        else:
-                            pk = pkd[f'pk_{dn1}{dn2}']
-                            if pk is not None:
-                                cl = ccl.angular_cl(cosmo, t11, t12, ls, p_of_k_a=pk) * clm['pixbeam']
-                            else:
-                                cl = np.zeros_like(ls)
-                            cl11[i1, i2, :] = cl
-            else:
-                cl11 = None
-            cls_11.append(cl11)
         # Bandpower window convolution
         if self.sample_cen:
             clbs_00 = cls_00
-            clbs_01 = cls_01
-            clbs_10 = cls_10
-            clbs_11 = cls_11
         elif self.sample_bpw:
             clbs_00 = []
-            clbs_01 = []
-            clbs_10 = []
-            clbs_11 = []
             # 00: unbiased x unbiased
             for clm, cl00 in zip(self.cl_meta, cls_00):
                 if (cl00 is not None):
@@ -199,48 +131,8 @@ class Limber_BNT(Theory):
                 else:
                     clb00 = None
                 clbs_00.append(clb00)
-            for clm, cl01, cl10 in zip(self.cl_meta, cls_01, cls_10):
-                # 01: unbiased x biased
-                if (cl01 is not None):
-                    clb01 = []
-                    for cl in cl01:
-                        clb = self._eval_interp_cl(cl, clm['l_bpw'], clm['w_bpw'])
-                        clb01.append(clb)
-                    clb01 = np.array(clb01)
-                else:
-                    clb01 = None
-                clbs_01.append(clb01)
-                # 10: biased x unbiased
-                if clm['bin_1'] == clm['bin_2']:
-                    clbs_10.append(clb01)
-                else:
-                    if (cl10 is not None):
-                        clb10 = []
-                        for cl in cl10:
-                            clb = self._eval_interp_cl(cl, clm['l_bpw'], clm['w_bpw'])
-                            clb10.append(clb)
-                        clb10 = np.array(clb10)
-                    else:
-                        clb10 = None
-                    clbs_10.append(clb10)
-                # 11: biased x biased
-                for clm, cl11 in zip(self.cl_meta, cls_11):
-                    if (cl11 is not None):
-                        clb11 = np.zeros((cl11.shape[0], cl11.shape[1], len(clm['l_eff'])))
-                        autocorr = clm['bin_1'] == clm['bin_2']
-                        for i1 in range(np.shape(cl11)[0]):
-                            for i2 in range(np.shape(cl11)[1]):
-                                if autocorr and i2 < i1:
-                                    clb11[i1, i2] = clb11[i2, i1]
-                                else:
-                                    cl = cl11[i1,i2,:]
-                                    clb = self._eval_interp_cl(cl, clm['l_bpw'], clm['w_bpw'])
-                                    clb11[i1,i2,:] = clb
-                    else:
-                        clb11 = None
-                    clbs_11.append(clb11)
 
-        return {'cl00': clbs_00, 'cl01': clbs_01, 'cl10': clbs_10, 'cl11': clbs_11}
+        return {'cl00': clbs_00}
 
     def _get_nz(self, cosmo, name, **pars):
         """ Get redshift distribution for a given tracer.
