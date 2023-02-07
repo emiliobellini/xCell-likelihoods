@@ -51,6 +51,10 @@ class ClFinal_BNT(Theory):
 
         # Theory model
         state["cl_theory"] = self._model(cld, bias, global_bias)
+        # print(self.cl_meta[0]['bin_1'], self.cl_meta[0]['bin_2'])
+        # print(self.cl_meta[0]['cl'])
+        # print(state["cl_theory"])
+        # print(cld['cl00'])
         # state["cl_theory_deriv"] = self._model_deriv(cld, bias, **pars)
 
     def get_cl_theory(self):
@@ -85,14 +89,23 @@ class ClFinal_BNT(Theory):
             b1 = bias_vec[ind1] if ind1 is not None else None
             b2 = bias_vec[ind2] if ind2 is not None else None
             inds = clm['inds']
+            print(n1, n2, clm['l_eff'])
             if e1 and e2:
+                print('00')
                 cl_this += cld['cl00'][icl]
+                # print(cld['cl00'][icl])
             if e1 and (b2 is not None):
+                print('01')
                 cl_this += np.dot(b2, cld['cl01'][icl]) # (nbias) , (nbias, nell)
+                # print(np.dot(b2, cld['cl01'][icl]))
             if e2 and (b1 is not None):
+                print('10')
                 cl_this += np.dot(b1, cld['cl10'][icl]) # (nbias) , (nbias, nell)
+                # print(np.dot(b1, cld['cl10'][icl]))
             if (b1 is not None) and (b2 is not None):
+                print('11')
                 cl_this += np.dot(b1, np.dot(b2, cld['cl11'][icl])) # (nbias1) * ((nbias2), (nbias1,nbias2,nell))
+                # print(np.dot(b1, np.dot(b2, cld['cl11'][icl])))
 
             # Multiply global biases (e.g. multiplicative bias)
             cl_this *= global_bias[n1]
@@ -175,9 +188,10 @@ class ClFinal_BNT(Theory):
                     pn = '_'.join([self.input_params_prefix, survey, 'A_IA'])
                     if pn in bias_names:
                         continue
-                bias_names.append(pn)
-                bd['bias_ind'] = [ind_bias]
-                ind_bias += 1
+                if ia_model != 'IANone':
+                    bias_names.append(pn)
+                    bd['bias_ind'] = [ind_bias]
+                    ind_bias += 1
             elif quantity == 'cmb_convergence':
                 bd['eps'] = True
 
