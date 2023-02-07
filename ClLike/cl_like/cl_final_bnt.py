@@ -15,15 +15,13 @@ class ClFinal_BNT(Theory):
     def initialize_with_provider(self, provider):
         self.provider = provider
         # Additional information specific for this likelihood
-        ia_model = self.provider.get_ia_model()
         is_PT_bias = self.provider.get_is_PT_bias()
 
-        self.bias_names, self.bias_info = self._get_bias_info(ia_model,
-                                                              is_PT_bias)
+        self.bias_names, self.bias_info = self._get_bias_info(is_PT_bias)
         self.ndata = np.sum([clm['l_eff'].size for clm in self.cl_meta])
 
     def get_requirements(self):
-        return {"ia_model": None, "is_PT_bias": None}
+        return {"is_PT_bias": None}
 
     def must_provide(self, **requirements):
         if "cl_theory" not in requirements:
@@ -136,7 +134,7 @@ class ClFinal_BNT(Theory):
             cls_deriv[inds] = cls_grad.T
         return cls_deriv # (ndata, nbias)
 
-    def _get_bias_info(self, ia_model, is_PT_bias):
+    def _get_bias_info(self, is_PT_bias):
         # Extract additional per-sample information from the sacc
         # file needed for this likelihood.
         ind_bias = 0
@@ -163,22 +161,6 @@ class ClFinal_BNT(Theory):
                 bd['eps'] = False
             elif quantity == 'galaxy_shear':
                 bd['eps'] = True
-                if ia_model == 'IAPerBin':
-                    pn = '_'.join([self.input_params_prefix, name, 'A_IA'])
-                elif ia_model == 'IADESY1':
-                    pn = '_'.join([self.input_params_prefix, 'A_IA'])
-                    if pn in bias_names:
-                        continue
-                elif ia_model == 'IADESY1_PerSurvey':
-                    # This assumes that name = survey__zbin
-                    survey = name.split('__')[0]
-                    pn = '_'.join([self.input_params_prefix, survey, 'A_IA'])
-                    if pn in bias_names:
-                        continue
-                if ia_model != 'IANone':
-                    bias_names.append(pn)
-                    bd['bias_ind'] = [ind_bias]
-                    ind_bias += 1
             elif quantity == 'cmb_convergence':
                 bd['eps'] = True
 
